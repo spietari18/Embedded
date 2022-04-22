@@ -10,8 +10,35 @@
 
 int main(void) {
     // SETUP
+    // DEFINE VARIABLES
+
+    // SETUP PINS
+
+    // READ PASSWORD FROM EEPROM
+
+    // INITIALIZE I2C OR SPI
+
+    // INITIALIZE INTERRUPT FOR MOTION SENSOR
 
     while(1) {
         // LOOP
+
+        // READ FROM KEYPAD
+
+            // IF TIMEOUT
+
+                // SEND PW_TIMEOUT TO SLAVE
+
+        // IF SUBMIT
+
+            // COMPARE PASSWORD
+
+                // CORRECT
+
+                    // ALARM OFF
+
+                    // SEND PW_OK TO SLAVE
+
+
     }
 }
