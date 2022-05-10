@@ -125,7 +125,8 @@ int main(void) {
     lcd_init(LCD_DISP_ON);
     lcd_clrscr();
 
-
+    int message = 0;
+    int last_message = 0;
     int alarm = 0;
     // SETUP PINS
     
@@ -153,8 +154,56 @@ int main(void) {
         // LOOP
 
         // LISTEN FOR MASTER
+        if ((TWCR & (1 << TWINT))){
+            // get TWI status
+            twi_status = (TWSR & 0xF8);	
+            
+            // "clear" TWINT and generate acknowledgment ACK (TWEA)
+            TWCR |=  (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
+            
+            // wait for the the TWINT to set
+            while(!(TWCR & (1 << TWINT)))
+            {
+                ;
+            }
+            
+            // get TWI status
+            twi_status = (TWSR & 0xF8);
+
+            // if status indicates that previous response was either slave address or general call and ACK was returned
+            // store the data register value to twi_receive_data
+            if((twi_status == 0x80) || (twi_status == 0x90))
+            {
+                twi_receive_data[twi_index] = TWDR; 
+                twi_index++;
+            }     
+            else if((twi_status == 0x88) || (twi_status == 0x98))        
+            {           
+                // if status indicates that previous response was either slave address or general call and NOT ACK was returned
+                // store the data register value to twi_receive_data
+                twi_receive_data[twi_index] = TWDR;
+                twi_index++;
+            }
+            else if(twi_status == 0xA0)
+            {
+                // Stop condition or repeated start was received
+                // Clear interrupt flag
+                TWCR |= (1 << TWINT);
+            }
+
+            // if twi_index indicates that the twi_receive_data is full, print to PuTTY
+            if (20 <= twi_index)
+            {
+                
+                printf(twi_receive_data);
+                twi_index = 0;
+                
+            }
+        }
 
         // IF MESSAGE
+        if(message != last_message){
+            last_message = message;
             lcd_clrscr()
             // STATE MACHINE TO HANDLE SIGNALS
             switch(message) {
@@ -186,6 +235,6 @@ int main(void) {
 
                 default:
             }
-
+        }
     }
 }
