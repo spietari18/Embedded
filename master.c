@@ -19,12 +19,14 @@
 #include <util/setbaud.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include "alarmstates.h"
 #include "keypad/keypad.h"
 
 // Global variables
 int pw_index = 0;        // Password input arrays index
 int timeout = 0;        // Password input timeout calculator
+bool alarm = TRUE;
 
 static void
 USART_init(uint16_t ubrr)
@@ -148,21 +150,25 @@ ISR (TIMER3_COMPA_vect) {
     if (timeout < 200) {
         timeout++;
         
-    } else {
+    } else if (pw_index != 0) {
         timeout = 0;
         pw_index = 0;        // Reset password input arrays index
 
         // Send PW_TIMEOUT to slave
-
+        TWI_transmit(PW_TIMEOUT);
         printf("PW_TIMEOUT\n");
-    }    
+    } else {
+        timeout = 0;
+    }
 }
 
 // Interrupt for PIR sensor
 ISR (INT3_vect) {
-    // Send ALARM_TRIGGER to slave
-
-    printf("ALARM TRIGGERED\n");
+    if(alarm) {
+        // Send ALARM_TRIGGER to slave
+        TWI_transmit(ALARM_TRIGGER);
+        printf("ALARM TRIGGERED\n");
+    }        
 }
 
 int main(void) {
@@ -248,16 +254,24 @@ int main(void) {
             if (strcmp(PW_INPUT, PASSWORD) == 0) {
                  // Password correct
                  // Send PW_OK to slave
-
+                 TWI_transmit(PW_OK);
                  printf("PW_OK!\n");
 
-                 // Send ALARM_OFF to slave
-                 
-                 printf("ALARM_OFF\n");
+                 if (alarm) {
+                     // Send ALARM_OFF to slave
+                     TWI_transmit(ALARM_OFF);
+                     printf("ALARM_OFF\n");
+                     alarm = FALSE;
+                 } else {
+                     // Send ALARM_ON to slave
+                     TWI_transmit(ALARM_ON);
+                     printf("ALARM_ON\n");
+                     alarm = TRUE;
+                 }                     
             } else {
                 // Password wrong
                 // Send PW_WRONG to slave
-
+                TWI_transmit(PW_WRONG);
                 printf("PW_WRONG!\n");
             }
             

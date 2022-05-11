@@ -6,6 +6,15 @@
  * Atmega328p
  */
 
+/*
+#define ALARM_OFF 0
+#define ALARM_ON 1
+#define ALARM_TRIGGER 2
+#define PW_OK 3
+#define PW_WRONG 4
+#define PW_TIMEOUT 5
+*/
+
 #define F_CPU 16000000UL
 #define FOSC 16000000UL // Clock Speed
 #define BAUD 9600
@@ -17,7 +26,8 @@
 #include <util/delay.h>
 #include <util/setbaud.h>
 #include <stdio.h>
-#include "alarmstates.h";
+#include "alarmstates.h"
+#include "lcd.h"
 
 static void
 USART_init(uint16_t ubrr) // unsigned int
@@ -60,74 +70,20 @@ USART_Receive(FILE *stream)
     return UDR0;
 }
 
-char TWI_receive(void) {
-    // Initialize variables
-    int8_t twi_receive_data[2];
-    uint8_t twi_index = 0;
-    uint8_t twi_status = 0;
-
-    // wait for TWINT to set, meaning that we are waiting for a transmission
-    while(!(TWCR & (1 << TWINT))) 
-    {
-        ;
-    }
-    
-    // get TWI status
-    twi_status = (TWSR & 0xF8);	
-    
-    // "clear" TWINT and generate acknowledgment ACK (TWEA)
-    TWCR |=  (1 << TWINT) | (1 << TWEA) | (1 << TWEN);
-    
-    // wait for the the TWINT to set
-    while(!(TWCR & (1 << TWINT)))
-    {
-        ;
-    }
-    
-        // get TWI status
-        twi_status = (TWSR & 0xF8);
-
-    // if status indicates that previous response was either slave address or general call and ACK was returned
-    // store the data register value to twi_receive_data
-    if((twi_status == 0x80) || (twi_status == 0x90))
-    {
-        twi_receive_data[twi_index] = TWDR; 
-        twi_index++;
-    }     
-    else if((twi_status == 0x88) || (twi_status == 0x98))        
-    {           
-        // if status indicates that previous response was either slave address or general call and NOT ACK was returned
-        // store the data register value to twi_receive_data
-        twi_receive_data[twi_index] = TWDR;
-        twi_index++;
-    }
-    else if(twi_status == 0xA0)
-    {
-        // Stop condition or repeated start was received
-        // Clear interrupt flag
-        TWCR |= (1 << TWINT);
-    }
-
-    // if twi_index indicates that the twi_receive_data is full, print to PuTTY
-    if (20 <= twi_index)
-    {
-        
-        printf(twi_receive_data);
-        twi_index = 0;
-        
-    }
-    return twi_receive_data;
-}
-
 int main(void) {
     // SETUP
     // DEFINE VARIABLES
+    char twi_receive_data = '9';
+    uint8_t twi_status = 0;
+    
+    int message = 0;
+    int last_message = 0;
+    int alarm = 0;
+    
+    // Initialize lcd
     lcd_init(LCD_DISP_ON);
     lcd_clrscr();
 
-    char message = 0;
-    char last_message = 0;
-    int alarm = 0;
     // SETUP PINS
     
     // Initialize USART
@@ -155,6 +111,7 @@ int main(void) {
 
         // LISTEN FOR MASTER
         if ((TWCR & (1 << TWINT))){
+            printf("Receiving...\n");
             // get TWI status
             twi_status = (TWSR & 0xF8);	
             
@@ -174,66 +131,68 @@ int main(void) {
             // store the data register value to twi_receive_data
             if((twi_status == 0x80) || (twi_status == 0x90))
             {
-                twi_receive_data[twi_index] = TWDR; 
-                twi_index++;
-            }     
+                twi_receive_data = TWDR;
+            }
             else if((twi_status == 0x88) || (twi_status == 0x98))        
             {           
                 // if status indicates that previous response was either slave address or general call and NOT ACK was returned
                 // store the data register value to twi_receive_data
-                twi_receive_data[twi_index] = TWDR;
-                twi_index++;
-            }
+                twi_receive_data = TWDR;
+            }            
             else if(twi_status == 0xA0)
             {
                 // Stop condition or repeated start was received
                 // Clear interrupt flag
                 TWCR |= (1 << TWINT);
             }
-
-            // if twi_index indicates that the twi_receive_data is full, print to PuTTY
-            if (1 <= twi_index)
-            {
-                
-                message = atoi(twi_receive_data);
-                twi_index = 0;
-                
-            }
+            printf("Received: %c\n", twi_receive_data);
+            message = twi_receive_data - '0';
         }
 
         // IF MESSAGE
         if(message != last_message){
+            printf("Got new message!\n");
+            printf("%d\n", message);
             last_message = message;
-            lcd_clrscr()
+            lcd_clrscr();
             // STATE MACHINE TO HANDLE SIGNALS
             switch(message) {
-                case ALARM_OFF:
-                    lcd_puts("Disarmed");
+                case 0: // ALARM OFF
+                    lcd_gotoxy(0,0);
+                    lcd_puts("Disarmed       ");
                     alarm = 0;
                     break;
 
-                case ALARM_ON:
-                    lcd_puts("Armed");
+                case 1: // ALARM_ON
+                    lcd_gotoxy(0,0);
+                    lcd_puts("Armed          ");
+                    alarm = 0;
                     break;
 
-                case ALARM_TRIGGER:
+                case 2: // ALARM_TRIGGER
+                    lcd_gotoxy(0,0);
                     lcd_puts("Alarm triggered");
                     alarm = 1;
                     break;
                 
-                case PW_OK:
-                    lcd_puts("Password Accepted");
+                case 3: // PW_OK
+                    lcd_gotoxy(0,1);
+                    lcd_puts("Password: Ok    ");
                     break;
 
-                case PW_TIMEOUT:
-                    lcd_puts("Timeout");
+                case 5: // PW_TIMEOUT
+                    lcd_gotoxy(0,1);
+                    lcd_puts("Password Timeout");
                     break;
 
-                case PW_WRONG:
-                    lcd_puts("Password Declined");
+                case 4: // PW_WRONG:
+                    lcd_gotoxy(0,1);
+                    lcd_puts("Password: Wrong ");
                     break;
 
                 default:
+                    printf("None of these options...\n");
+                    break;
             }
         }
     }
