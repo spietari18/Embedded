@@ -7,6 +7,7 @@
  */
 
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #include <util/delay.h>
 #include <util/setbaud.h>
 #include <stdio.h>
@@ -19,6 +20,9 @@
 #define MYUBRR (FOSC/16/BAUD-1)
 
 #define SLAVE_ADDRESS 85 // 0b1010101
+
+// Global variables
+int pw_index = 0;        // Password input arrays index
 
 static void
 USART_init(uint16_t ubrr)
@@ -62,7 +66,7 @@ USART_Receive(FILE *stream)
 }
 
 int 
-TWI_transmit(int8_t twi_send_data[2])
+TWI_transmit(char twi_send_data)
 {
     // Initialize variables
     uint8_t twi_index = 0;
@@ -142,13 +146,27 @@ TWI_transmit(int8_t twi_send_data[2])
     return 0;
 }
 
+ISR (TIMER3_COMPA_vect) {
+    pw_index = 0;        // Reset password input arrays index
+
+    // Send PW_TIMEOUT to slave
+
+}
+
+// Interrupt for PIR sensor
+ISR (INT3_vect) {
+
+}
+
 int main(void) {
     // SETUP
     // DEFINE VARIABLES
     char PW_INPUT[10];      // Array to save password inputted
+    char PASSWORD[9];       // Array for password
 
     // SETUP PINS
     // PIR
+    DDRD &= ~(1 << PD3);        // PIN 18 TX1
 
     // Initialize keypad
     KEYPAD_Init();
@@ -161,9 +179,31 @@ int main(void) {
     TWBR = 0x03; // TWI bit rate register.
     TWCR |= (1 << TWEN); // enable TWI
 
+    // Enable interrupts
+    sei();
+
     // INITIALIZE INTERRUPT FOR MOTION SENSOR
+    // Clear interrupt register
+    EIMSK = 0b00000000;
+    // Set trigger to rising edge
+    ISC31 = 1;
+    ISC30 = 1;
+    // Enable interrupt 3
+    EIMSK = 0b00001000;
+    SREG = 1;
 
     // INITIALIZE INTERRUPT FOR KEYPAD TIMEOUT
+    DDRE |= (1 << PE3); // OC3A is located in digital pin 5
+    // Reset timer 3
+    TCCR3A = 0;
+    TCCR3B = 0;
+    TCNT3 = 0;
+
+    // Initialize timer
+    TCCR3A = 0x02;          // CTC
+    TCCR3B = 0b00000101;    // 1024 prescaling
+    OCR3A = 78125;          // TOP value
+    TIMSK3 |= (1 << 1);     // Enable compare match A interrupt
 
     // Setup the stream functions for UART
     FILE uart_output = FDEV_SETUP_STREAM(USART_Transmit, NULL, _FDEV_SETUP_WRITE);
@@ -179,33 +219,42 @@ int main(void) {
     while(1) {
         // LOOP
 
-        // READ FROM KEYPAD
+        // Read from keypad, save to array
+        PW_INPUT[pw_index] = KEYPAD_GetKey();
 
-            // IF TIMEOUT
+        if (pw_index == 0) {
+            // Initialize timer after first keypress is registered
 
-                // SEND PW_TIMEOUT TO SLAVE
+        }
 
-                // CLEAR PW_INPUT
+        // Increase index by one
+        pw_index++;
 
-            // IF SUBMIT
+        // IF SUBMIT
+        if (PW_INPUT[pw_index -1] == "#") {
+            // Compare password
+            for (int i = 0; i < pw_index -1; i++) {
+                if (PW_INPUT[i] != PASSWORD[i]) {
+                    // Password wrong
+                    // Send PW_WRONG to slave
 
-                // COMPARE PASSWORD
+                    break;
+                }
+                // Last index of password
+                else if (i == pw_index -2) {
+                    // Password correct
+                    // Send PW_OK to slave
 
-                    // CORRECT
+                    // Send ALARM_OFF to slave
+                }
+            }
+            // Clear inputted password by setting index to 0
+            pw_index = 0;
+        }
 
-                        // ALARM OFF
-
-                        // SEND PW_OK TO SLAVE
-                
-                    // INCORRECT
-
-                        // SEND PW_WRONG TO SLAVE
-
-                // CLEAR PW_INPUT
-
-            // ELSE
-
-                // SAVE PRESSED KEY TO ARRAY
-
+        // If clear
+        if (PW_INPUT[pw_index -1] == "D") {
+            pw_index = 0;
+        }
     }
 }

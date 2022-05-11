@@ -60,7 +60,7 @@ USART_Receive(FILE *stream)
     return UDR0;
 }
 
-int TWI_receive(void) {
+char TWI_receive(void) {
     // Initialize variables
     int8_t twi_receive_data[2];
     uint8_t twi_index = 0;
@@ -125,8 +125,8 @@ int main(void) {
     lcd_init(LCD_DISP_ON);
     lcd_clrscr();
 
-    int message = 0;
-    int last_message = 0;
+    char message = 0;
+    char last_message = 0;
     int alarm = 0;
     // SETUP PINS
     
