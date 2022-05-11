@@ -6,14 +6,6 @@
  * ATmega2560
  */
 
-#include <avr/io.h>
-#include <avr/interrupt.h>
-#include <util/delay.h>
-#include <util/setbaud.h>
-#include <stdio.h>
-#include "alarmstates.h"
-#include "keypad/keypad.h"
-
 #define F_CPU 16000000UL
 #define FOSC 16000000UL // Clock Speed
 #define BAUD 9600
@@ -21,8 +13,18 @@
 
 #define SLAVE_ADDRESS 85 // 0b1010101
 
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+#include <util/setbaud.h>
+#include <stdio.h>
+#include <string.h>
+#include "alarmstates.h"
+#include "keypad/keypad.h"
+
 // Global variables
 int pw_index = 0;        // Password input arrays index
+int timeout = 0;        // Password input timeout calculator
 
 static void
 USART_init(uint16_t ubrr)
@@ -69,8 +71,8 @@ int
 TWI_transmit(char twi_send_data)
 {
     // Initialize variables
-    uint8_t twi_index = 0;
     uint8_t twi_status = 0;
+    char test_char_array[16];
 
     // Start transmission by sending START condition
     TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN); 
@@ -114,29 +116,25 @@ TWI_transmit(char twi_send_data)
     printf(" ");
     
     // transmit data to the slave
-    for(int8_t twi_data_index = 0; twi_data_index < sizeof(twi_send_data); twi_data_index++)
-    {
                 
-        TWDR = twi_send_data[twi_data_index]; // load data 
+    TWDR = twi_send_data; // load data 
         
-        // "clear" TWINT to start transmitting the data
-        TWCR = (1 << TWINT) | (1 << TWEN);
-        // TWCR = (1 << 7) | (1 << 2);
+    // "clear" TWINT to start transmitting the data
+    TWCR = (1 << TWINT) | (1 << TWEN);
+    // TWCR = (1 << 7) | (1 << 2);
         
-        // wait for the TWINT to set
-        while (!(TWCR & ( 1<< TWINT)))
-        {
-            ;
-        }
-
-        // read the status from TWI status register, 0xF8 is used to mask prescaler bits so that
-        // only the status bits are read
-        twi_status = (TWSR & 0xF8);
-        itoa(twi_status, test_char_array, 16);
-        printf(test_char_array);
-        printf(" ");
-        
+    // wait for the TWINT to set
+    while (!(TWCR & ( 1<< TWINT)))
+    {
+        ;
     }
+
+    // read the status from TWI status register, 0xF8 is used to mask prescaler bits so that
+    // only the status bits are read
+    twi_status = (TWSR & 0xF8);
+    itoa(twi_status, test_char_array, 16);
+    printf(test_char_array);
+    printf(" ");
     
     // stop transmission by sending STOP
     TWCR = (1 << TWINT) | (1 << TWSTO) |(1 << TWEN);
@@ -147,19 +145,24 @@ TWI_transmit(char twi_send_data)
 }
 
 ISR (TIMER3_COMPA_vect) {
-    pw_index = 0;        // Reset password input arrays index
+    if (timeout < 200) {
+        timeout++;
+        
+    } else {
+        timeout = 0;
+        pw_index = 0;        // Reset password input arrays index
 
-    // Send PW_TIMEOUT to slave
+        // Send PW_TIMEOUT to slave
 
-    printf("PW_TIMEOUT\n");
-
+        printf("PW_TIMEOUT\n");
+    }    
 }
 
 // Interrupt for PIR sensor
 ISR (INT3_vect) {
     // Send ALARM_TRIGGER to slave
 
-    printf("ALARM TRIGGERED");
+    printf("ALARM TRIGGERED\n");
 }
 
 int main(void) {
@@ -167,6 +170,11 @@ int main(void) {
     // DEFINE VARIABLES
     char PW_INPUT[10];      // Array to save password inputted
     char PASSWORD[9];       // Array for password
+    PASSWORD[0] = '1';
+    PASSWORD[1] = '2';
+    PASSWORD[2] = '3';
+    PASSWORD[3] = '4';
+    PASSWORD[4] = '\0';
 
     // SETUP PINS
     // PIR
@@ -190,11 +198,9 @@ int main(void) {
     // Clear interrupt register
     EIMSK = 0b00000000;
     // Set trigger to rising edge
-    ISC31 = 1;
-    ISC30 = 1;
+    EICRA = 0b11000000;
     // Enable interrupt 3
     EIMSK = 0b00001000;
-    SREG = 1;
 
     // INITIALIZE INTERRUPT FOR KEYPAD TIMEOUT
     DDRE |= (1 << PE3); // OC3A is located in digital pin 5
@@ -206,7 +212,7 @@ int main(void) {
     // Initialize timer
     TCCR3A = 0x02;          // CTC
     TCCR3B = 0b00000101;    // 1024 prescaling
-    OCR3A = 78125;          // TOP value
+    OCR3A = 0xFFFF;          // TOP value
     TIMSK3 |= (1 << 1);     // Enable compare match A interrupt
 
     // Setup the stream functions for UART
@@ -226,48 +232,43 @@ int main(void) {
 
         // Read from keypad, save to array
         PW_INPUT[pw_index] = KEYPAD_GetKey();
-
-        if (pw_index == 0) {
-            // Initialize timer after first keypress is registered
-
-        }
+        
+        // Reset timeout timer
+        timeout = 0;
 
         // Increase index by one
         pw_index++;
 
         // IF SUBMIT
-        printf("Submit pressed!\n");
-        if (PW_INPUT[pw_index -1] == "#") {
-            // Compare password
-            for (int i = 0; i < pw_index -1; i++) {
-                if (PW_INPUT[i] != PASSWORD[i]) {
-                    // Password wrong
-                    // Send PW_WRONG to slave
+        if (PW_INPUT[pw_index -1] == '#') {
+            printf("Submit pressed!\n");
+            // Set submit char to be terminating character
+            PW_INPUT[pw_index -1] = '\0';
+            printf("%s\n%s\n", PW_INPUT, PASSWORD);
+            if (strcmp(PW_INPUT, PASSWORD) == 0) {
+                 // Password correct
+                 // Send PW_OK to slave
 
-                    printf("PW_WRONG!\n");
+                 printf("PW_OK!\n");
 
-                    break;
-                }
-                // Last index of password
-                else if (i == pw_index -2) {
-                    // Password correct
-                    // Send PW_OK to slave
+                 // Send ALARM_OFF to slave
+                 
+                 printf("ALARM_OFF\n");
+            } else {
+                // Password wrong
+                // Send PW_WRONG to slave
 
-                    printf("PW_OK!\n");
-
-                    // Send ALARM_OFF to slave
-                    
-                    printf("ALARM_OFF\n");
-                }
+                printf("PW_WRONG!\n");
             }
+            
             // Clear inputted password by setting index to 0
             pw_index = 0;
         }
 
         // If clear
-        if (PW_INPUT[pw_index -1] == "D") {
+        if (PW_INPUT[pw_index -1] == 'D') {
             pw_index = 0;
-            printf("PW_CLEAR!");
+            printf("PW_CLEAR!\n");
         }
     }
 }
