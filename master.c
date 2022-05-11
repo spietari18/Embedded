@@ -151,11 +151,15 @@ ISR (TIMER3_COMPA_vect) {
 
     // Send PW_TIMEOUT to slave
 
+    printf("PW_TIMEOUT\n");
+
 }
 
 // Interrupt for PIR sensor
 ISR (INT3_vect) {
+    // Send ALARM_TRIGGER to slave
 
+    printf("ALARM TRIGGERED");
 }
 
 int main(void) {
@@ -216,6 +220,7 @@ int main(void) {
     stdout = &uart_output;
     stdin = &uart_input;
 
+    printf("DONE!\n");
     while(1) {
         // LOOP
 
@@ -231,12 +236,15 @@ int main(void) {
         pw_index++;
 
         // IF SUBMIT
+        printf("Submit pressed!\n");
         if (PW_INPUT[pw_index -1] == "#") {
             // Compare password
             for (int i = 0; i < pw_index -1; i++) {
                 if (PW_INPUT[i] != PASSWORD[i]) {
                     // Password wrong
                     // Send PW_WRONG to slave
+
+                    printf("PW_WRONG!\n");
 
                     break;
                 }
@@ -245,7 +253,11 @@ int main(void) {
                     // Password correct
                     // Send PW_OK to slave
 
+                    printf("PW_OK!\n");
+
                     // Send ALARM_OFF to slave
+                    
+                    printf("ALARM_OFF\n");
                 }
             }
             // Clear inputted password by setting index to 0
@@ -255,6 +267,7 @@ int main(void) {
         // If clear
         if (PW_INPUT[pw_index -1] == "D") {
             pw_index = 0;
+            printf("PW_CLEAR!");
         }
     }
 }
