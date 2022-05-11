@@ -143,6 +143,7 @@ TWI_transmit(char twi_send_data)
     //TWCR = (1 << 7) | (1 << 4) |(1 << 2);
     printf("\n");
     
+    
     return 0;
 }
 

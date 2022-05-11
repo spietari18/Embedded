@@ -154,7 +154,6 @@ int main(void) {
             printf("Got new message!\n");
             printf("%d\n", message);
             last_message = message;
-            lcd_clrscr();
             // STATE MACHINE TO HANDLE SIGNALS
             switch(message) {
                 case 0: // ALARM OFF
