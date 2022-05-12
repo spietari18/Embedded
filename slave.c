@@ -103,14 +103,14 @@ int main(void) {
      /* set up the 16-bit timer/counter1, mode 9 used */
     TCCR1B  = 0; // reset timer/counter 1
     TCNT1   = 0;
-    TCCR1A = 0; // set compare output mode to toggle
+    TCCR1A |= (1 << 6); // set compare output mode to toggle
 
     // mode 9 phase correct
-    TCCR1A |= (1 << WGM10); // set register A WGM[1:0] bits
+    TCCR1A |= (1 << 0); // set register A WGM[1:0] bits
     
-    TCCR1B |= (1 << WGM13); // set register B WBM[3:2] bits
+    TCCR1B |= (1 << 4); // set register B WBM[3:2] bits
 
-    TIMSK1 |= (1 << OCIE1A); // enable compare match A interrupt
+    TIMSK1 |= (1 << 1); // enable compare match A interrupt
     OCR1A = 2462;
 
     
@@ -137,10 +137,13 @@ int main(void) {
 
     while(1) {
         // LOOP
-        if(alarm = 1){
-            TCCR1B |= (1 << CS10);
-            _delay_ms(250);
-            TCCR1B |= (0 << CS10);
+        if (alarm == 1) {
+            //printf("Alarm should beep\n");
+            TCCR1B |= (1 << 0);     // Start timer, prescaler 0
+            //_delay_ms(250);
+            //TCCR1B |= (0 << 0);
+        } else {
+            TCCR1B &= 0b11111000;   // Stop timer
         }
         // LISTEN FOR MASTER
         if ((TWCR & (1 << TWINT))){
@@ -226,7 +229,7 @@ int main(void) {
                     printf("None of these options...\n");
                     break;
             }
-            _delay_ms(50);
+            //_delay_ms(100);
         }
     }
 }
