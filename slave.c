@@ -29,6 +29,14 @@
 #include <util/delay.h>
 #include "alarmstates.h"
 #include "lcd.h"
+#include <avr/interrupt.h>
+
+ISR
+(TIMER1_COMPA_vect)
+{
+    TCNT1 = 0; // reset timer counter
+}
+
 
 static void
 USART_init(uint16_t ubrr) // unsigned int
@@ -86,7 +94,25 @@ int main(void) {
     lcd_clrscr();
 
     // Initialize buzzer pwm
+    /* set up the ports and pins */
+    DDRB |= (1 << PB1); // OC1A is located in digital pin 9
     
+    // Enable interrupts
+    sei();
+
+     /* set up the 16-bit timer/counter1, mode 9 used */
+    TCCR1B  = 0; // reset timer/counter 1
+    TCNT1   = 0;
+    TCCR1A = 0; // set compare output mode to toggle
+
+    // mode 9 phase correct
+    TCCR1A |= (1 << WGM10); // set register A WGM[1:0] bits
+    
+    TCCR1B |= (1 << WGM13); // set register B WBM[3:2] bits
+
+    TIMSK1 |= (1 << OCIE1A); // enable compare match A interrupt
+    OCR1A = 2462;
+
     
     
     // Initialize USART
@@ -111,7 +137,11 @@ int main(void) {
 
     while(1) {
         // LOOP
-
+        if(alarm = 1){
+            TCCR1B |= (1 << CS10);
+            _delay_ms(250);
+            TCCR1B |= (0 << CS10);
+        }
         // LISTEN FOR MASTER
         if ((TWCR & (1 << TWINT))){
             printf("Receiving...\n");

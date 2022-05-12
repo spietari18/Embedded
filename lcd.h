@@ -158,7 +158,7 @@
 #define LCD_RS_PORT      PORTB     /**< port for RS line         */
 #endif
 #ifndef LCD_RS_PIN
-#define LCD_RS_PIN       1            /**< pin  for RS line         */
+#define LCD_RS_PIN       0            /**< pin  for RS line         */
 #endif
 #ifndef LCD_RW_PORT
 #define LCD_RW_PORT      PORTB     /**< port for RW line         */
