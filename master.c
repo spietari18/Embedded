@@ -257,7 +257,7 @@ int main(void) {
                  // Send PW_OK to slave
                  TWI_transmit(PW_OK);
                  printf("PW_OK!\n");
-
+                 _delay_ms(100);
                  if (alarm) {
                      // Send ALARM_OFF to slave
                      TWI_transmit(ALARM_OFF);
@@ -282,7 +282,10 @@ int main(void) {
 
         // If clear
         if (PW_INPUT[pw_index -1] == 'D') {
-            pw_index = 0;
+            pw_index = pw_index -2;
+            if (pw_index < 0) {
+                pw_index = 0;
+            }
             printf("PW_CLEAR!\n");
         }
     }

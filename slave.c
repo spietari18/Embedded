@@ -26,6 +26,7 @@
 #include <util/delay.h>
 #include <util/setbaud.h>
 #include <stdio.h>
+#include <util/delay.h>
 #include "alarmstates.h"
 #include "lcd.h"
 
@@ -84,7 +85,9 @@ int main(void) {
     lcd_init(LCD_DISP_ON);
     lcd_clrscr();
 
-    // SETUP PINS
+    // Initialize buzzer pwm
+    
+    
     
     // Initialize USART
     FILE uart_output = FDEV_SETUP_STREAM(USART_Transmit, NULL, _FDEV_SETUP_WRITE);
@@ -156,7 +159,7 @@ int main(void) {
             last_message = message;
             // STATE MACHINE TO HANDLE SIGNALS
             switch(message) {
-                case 0: // ALARM OFF
+                case 0: // ALARM_OFF
                     lcd_gotoxy(0,0);
                     lcd_puts("Disarmed       ");
                     alarm = 0;
@@ -193,6 +196,7 @@ int main(void) {
                     printf("None of these options...\n");
                     break;
             }
+            _delay_ms(50);
         }
     }
 }
